@@ -181,18 +181,36 @@ func (r *Resampler) SetRatio(ratio float64) {
 // lagrange calculates the value at x of a polynomial of order len(pts)+1 which goes through all
 // points in pts
 func lagrange(pts []point, x float64) (y float64) {
-	y = 0.0
-	for j := range pts {
-		l := 1.0
-		for m := range pts {
-			if j == m {
-				continue
-			}
-			l *= (x - pts[m].X) / (pts[j].X - pts[m].X)
-		}
-		y += pts[j].Y * l
+	n := len(pts)
+	if n == 0 {
+		return 0
 	}
-	return y
+	if n == 1 {
+		return pts[0].Y
+	}
+
+	t := x - pts[0].X
+
+	i := int(t)
+	if t == float64(i) && i >= 0 && i < n {
+		return pts[i].Y
+	}
+
+	var numerator, denominator float64
+	weight := 1.0
+
+	for j := 0; j < n; j++ {
+		if j > 0 {
+			weight *= float64(n-j) / float64(j)
+			weight = -weight
+		}
+
+		v := weight / (t - float64(j))
+		numerator += v * pts[j].Y
+		denominator += v
+	}
+
+	return numerator / denominator
 }
 
 type point struct {
