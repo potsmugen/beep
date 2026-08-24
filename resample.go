@@ -178,8 +178,28 @@ func (r *Resampler) SetRatio(ratio float64) {
 	r.ratio = ratio
 }
 
+// Cache for math results of lagrange()
+var lagrangeWeightTables sync.Map
+
+func lagrangeWeights(n int) []float64 {
+	if w, ok := lagrangeWeightTables.Load(n); ok {
+		return w.([]float64)
+	}
+	w := make([]float64, n)
+	weight := 1.0
+	w[0] = 1.0
+	for j := 1; j < n; j++ {
+		weight *= float64(n-j) / float64(j)
+		weight = -weight
+		w[j] = weight
+	}
+	actual, _ := lagrangeWeightTables.LoadOrStore(n, w)
+	return actual.([]float64)
+}
+
 // lagrange calculates the value at x of a polynomial of order len(pts)+1 which goes through all
 // points in pts
+// Now optimized for Ikemen GO. Assumes pts.X are always consecutive integers
 func lagrange(pts []point, x float64) (y float64) {
 	n := len(pts)
 	if n == 0 {
@@ -196,16 +216,11 @@ func lagrange(pts []point, x float64) (y float64) {
 		return pts[i].Y
 	}
 
+	weight := lagrangeWeights(n)
+
 	var numerator, denominator float64
-	weight := 1.0
-
 	for j := 0; j < n; j++ {
-		if j > 0 {
-			weight *= float64(n-j) / float64(j)
-			weight = -weight
-		}
-
-		v := weight / (t - float64(j))
+		v := weight[j] / (t - float64(j))
 		numerator += v * pts[j].Y
 		denominator += v
 	}
